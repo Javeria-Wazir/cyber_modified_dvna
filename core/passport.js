@@ -1,7 +1,7 @@
 var db = require('../models')
 var LocalStrategy = require('passport-local').Strategy
-var bCrypt = require('bcrypt')
-
+var bcrypt = require('bcrypt')
+var inputValidator = require('./inputValidator')
 
 module.exports = function (passport) {
 
@@ -28,9 +28,14 @@ module.exports = function (passport) {
             passReqToCallback: true
         },
         function (req, username, password, done) {
+            var sanitizedLogin = inputValidator.sanitizeLogin(username)
+            if (!sanitizedLogin || !inputValidator.isValidLoginPasswordInput(password)) {
+                return done(null, false, req.flash('danger', 'Invalid Credentials'))
+            }
+
             db.User.findOne({
                 where: {
-                    'login': username
+                    'login': sanitizedLogin
                 }
             }).then(function (user) {
                 if (!user) {
@@ -44,46 +49,64 @@ module.exports = function (passport) {
         }))
 
     var isValidPassword = function (user, password) {
-        return bCrypt.compareSync(password, user.password);
+        return bcrypt.compareSync(password, user.password);
     }
 
     passport.use('signup', new LocalStrategy({
             passReqToCallback: true
         },
         function (req, username, password, done) {
-            findOrCreateUser = function () {
+            var findOrCreateUser = function () {
+                if (!(req.body.email && req.body.password && req.body.username && req.body.cpassword && req.body.name)) {
+                    return done(null, false, req.flash('danger', 'Input field(s) missing'));
+                }
+
+                var sanitizedEmail = inputValidator.sanitizeEmail(req.body.email)
+                var sanitizedLogin = inputValidator.sanitizeLogin(req.body.username)
+                var sanitizedName = inputValidator.sanitizeName(req.body.name)
+                if (!sanitizedEmail) {
+                    return done(null, false, req.flash('danger', 'Invalid email'));
+                }
+                if (!sanitizedLogin) {
+                    return done(null, false, req.flash('danger', 'Invalid username'));
+                }
+                if (!sanitizedName) {
+                    return done(null, false, req.flash('danger', 'Invalid name'));
+                }
+                if (!inputValidator.isValidPasswordInput(req.body.password) || !inputValidator.isValidPasswordInput(req.body.cpassword)) {
+                    return done(null, false, req.flash('danger', 'Invalid password format'));
+                }
+
+                if (req.body.cpassword != req.body.password) {
+                    return done(null, false, req.flash('danger', 'Passwords dont match'));
+                }
+
                 db.User.findOne({
                     where: {
-                        'email': username
+                        'login': sanitizedLogin
                     }
                 }).then(function (user) {
                     if (user) {
                         return done(null, false, req.flash('danger', 'Account Already Exists'));
-                    } else {
-                        if (req.body.email && req.body.password && req.body.username && req.body.cpassword && req.body.name) {
-                            if (req.body.cpassword == req.body.password) {
-                                db.User.create({
-                                    email: req.body.email,
-                                    password: createHash(password),
-                                    name: req.body.name,
-                                    login: username
-                                }).then(function (user) {
-                                    return done(null, user)
-                                })
-                            } else {
-                                return done(null, false, req.flash('danger', 'Passwords dont match'));
-                            }
-                        } else {
-                            return done(null, false, req.flash('danger', 'Input field(s) missing'));
-                        }
                     }
-                });
+
+                    return bcrypt.hash(password, 10).then(function (hashedPassword) {
+                        return db.User.create({
+                            email: sanitizedEmail,
+                            password: hashedPassword,
+                            name: sanitizedName,
+                            login: sanitizedLogin
+                        })
+                    }).then(function (createdUser) {
+                        return done(null, createdUser)
+                    }).catch(function (err) {
+                        return done(err)
+                    })
+                }).catch(function (err) {
+                    return done(err)
+                })
             };
             process.nextTick(findOrCreateUser)
         }));
-
-    var createHash = function (password) {
-        return bCrypt.hashSync(password, bCrypt.genSaltSync(10), null);
-    }
 
 }

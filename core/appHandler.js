@@ -1,5 +1,5 @@
 var db = require('../models')
-var bCrypt = require('bcrypt')
+var bcrypt = require('bcrypt')
 const exec = require('child_process').exec;
 var mathjs = require('mathjs')
 var libxmljs = require("libxmljs");
@@ -150,7 +150,24 @@ module.exports.userEditSubmit = function (req, res) {
 		if(req.body.password.length>0){
 			if(req.body.password.length>0){
 				if (req.body.password == req.body.cpassword) {
-					user.password = bCrypt.hashSync(req.body.password, bCrypt.genSaltSync(10), null)
+					bcrypt.hash(req.body.password, 10).then(function (hashedPassword) {
+						user.password = hashedPassword
+						return user.save()
+					}).then(function () {
+						req.flash('success', "Updated successfully")
+						res.render('app/useredit', {
+							userId: req.body.id,
+							userEmail: req.body.email,
+							userName: req.body.name,
+						})
+					}).catch(function () {
+						req.flash('warning', 'Invalid Password')
+						res.render('app/useredit', {
+							userId: req.user.id,
+							userEmail: req.user.email,
+							userName: req.user.name,
+						})
+					})
 				}else{
 					req.flash('warning', 'Passwords dont match')
 					res.render('app/useredit', {

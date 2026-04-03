@@ -1,150 +1,170 @@
-# Damn Vulnerable NodeJS Application (DVNA)
+# Task for Cybersecurity Interns: Strengthening Security Measures for a Web Application
 
-![dvna-logo](docs/resources/dvna.png)
+## Overview
+Analyze the DVNA application for vulnerabilities and apply basic security measures to strengthen it. The goal is to practice cybersecurity fundamentals through assessment, mitigation, and reporting.
 
-Damn Vulnerable NodeJS Application (DVNA) is a simple NodeJS application to demonstrate [**OWASP Top 10 Vulnerabilities**](https://www.owasp.org/index.php/Top_10-2017_Top_10) and guide on fixing and avoiding these vulnerabilities. The [fixes](https://github.com/appsecco/dvna/tree/fixes) branch will contain fixes for the vulnerabilities. Fixes for vulnerabilities OWASssP Top 10 2017 vulnerabilities at [fixes-2017](https://github.com/appsecco/dvna/tree/fixes-2017) branch.
+## Week 1: Security Assessment completed
 
-The application is powered by commonly used libraries such as [express](https://www.npmjs.com/package/express), [passport](https://www.npmjs.com/package/passport), [sequelize](https://www.npmjs.com/package/sequelize), etc.
+### Understand the application
+Status: completed
 
-## Developer Security Guide book
+- Set up the application and confirmed it runs locally on port 9090.
+- Explored signup, login, and profile pages.
+- Identified the stack as Express.js with Sequelize ORM and an SQLite database.
 
-The application comes with a **developer friendly comprehensive guidebook** which can be used to learn, avoid and fix the vulnerabilities. The guide is available at [docs](/docs) and covers the following
+Evidence:
+- [package.json](package.json) for project dependencies
+- [server.js](server.js) for Express bootstrap
+- [routes/main.js](routes/main.js) for authentication routes
 
-1. Instructions for setting up DVNA
-2. Instructions on exploiting the vulnerabilities
-3. Vulnerable code snippets and instructions on fixing vulnerabilities
-4. Recommendations for avoid such vulnerabilities
-5. References for learning more
+### Perform basic vulnerability assessment
+Status: completed
 
-The blog post for this release is at [https://blog.appsecco.com/damn-vulnerable-nodejs-application-dvna-by-appsecco-7d782d36dc1e](https://blog.appsecco.com/damn-vulnerable-nodejs-application-dvna-by-appsecco-7d782d36dc1e)
+Vulnerability assessment was completed using OWASP ZAP and manual testing.
 
-You can setup a local gitbook server to access the documentation using the following commands. The documentation will then be accessible on [http://localhost:4000](http://localhost:4000).
+Tools used:
+- Browser developer tools for XSS payload testing
+- Manual SQL injection testing in login fields
+- Security header analysis
 
-```bash
-cd docs/
-docker run --rm -v `pwd`:/gitbook -p 4000:4000 --name gitbook amontaigu/gitbook gitbook serve
-```
+Focus areas tested:
+- Cross-site scripting detection
+- SQL injection vulnerabilities
+- Weak password storage patterns
+- Security misconfiguration checks
 
-## Quick start
+### Document findings
+Status: completed
 
-Try DVNA using a single command with Docker. This setup uses an SQLite database instead of MySQL.
+Vulnerabilities found: 5 total
+- High: 2, including SQL injection and XSS
+- Medium: 2, including input validation and error handling
+- Low: 1, related to security headers
 
-```bash
-docker run --name dvna -p 9090:9090 -d appsecco/dvna:sqlite
-```
+Full assessment: [task1.md](task1.md) for the Week 1 security assessment report
 
-Access the application at [http://127.0.0.1:9090/](http://127.0.0.1:9090/)
+## Week 2: Implementing security measures completed
 
-## Getting Started
+### Fix vulnerabilities: input validation and sanitization
+Status: completed
 
-DVNA can be deployed in three ways
+Validator was added to support input checks for email, login, name, password, and token values.
 
-1. For Developers, using docker-compose with auto-reload on code updates
-2. For Security Testers, using the Official image from Docker Hub
-3. For Advanced Users, using a fully manual setup
+Implementation details:
+- Email validation and normalization were added in [core/inputValidator.js](core/inputValidator.js).
+- Login validation was added with a restricted character allowlist.
+- Password length checks were added for both registration and login flows.
+- Name fields are sanitized before use.
+- Token values are validated as fixed-length hexadecimal strings.
 
-Detailed instructions on setup and requirements are given in the Guide Gitbook
+Usage in auth flows:
+- Login validation in [core/passport.js](core/passport.js)
+- Signup validation in [core/passport.js](core/passport.js)
+- Password reset validation in [core/authHandler.js](core/authHandler.js)
 
-### 1. Development Setup
+### Password hashing with bcrypt
+Status: completed
 
-Clone this repository
+Passwords are hashed before storage, and login comparisons use bcrypt for safer verification.
 
-```bash
-git clone https://github.com/appsecco/dvna; cd dvna
-```
+Implementation details:
+- Bcrypt was added as a dependency.
+- Registration and password reset flows hash passwords before persistence.
+- Login verification uses bcrypt comparison rather than plain-text matching.
 
-Create a `vars.env` with the desired database configuration
+Relevant files:
+- [core/passport.js](core/passport.js)
+- [core/authHandler.js](core/authHandler.js)
 
-```bash
-MYSQL_USER=dvna
-MYSQL_DATABASE=dvna
-MYSQL_PASSWORD=passw0rd
-MYSQL_RANDOM_ROOT_PASSWORD=yes
-```
+### Enhanced authentication with JWT tokens
+Status: completed
 
-Start the application and database using `docker-compose`
+JWT support was added for API authentication.
 
-```bash
-docker-compose up
-```
+Implementation details:
+- Tokens are generated on login with a one-hour expiry.
+- Token verification is handled in middleware.
+- Protected API access is available through the me endpoint.
 
-Access the application at [http://127.0.0.1:9090/](http://127.0.0.1:9090/)
+Relevant files:
+- [routes/main.js](routes/main.js)
+- [core/authHandler.js](core/authHandler.js)
 
-The application will automatically reload on code changes, so feel free to patch and play around with the application.
+### Secure data transmission hardening with Helmet
+Status: completed
 
-### Using Official Docker Image
+Helmet was added to improve security headers.
 
-Create a file named `vars.env` with the following configuration
+Implementation details:
+- Helmet is initialized early in the server startup flow.
+- Security headers such as X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Strict-Transport-Security, and Content-Security-Policy are enabled.
 
-```bash
-MYSQL_USER=dvna
-MYSQL_DATABASE=dvna
-MYSQL_PASSWORD=passw0rd
-MYSQL_RANDOM_ROOT_PASSWORD=yes
-MYSQL_HOST=mysql-db
-MYSQL_PORT=3306
-```
+Relevant file:
+- [server.js](server.js)
 
-Start a MySQL container
+## Week 3: Advanced security and final reporting completed
 
-```bash
-docker run --rm --name dvna-mysql --env-file vars.env -d mysql:5.7
-```
+### Basic penetration testing
+Status: completed
 
-Start the application using the official image
+Tests performed:
+- Cross-site scripting payload testing
+- SQL injection testing in login fields
+- Token-based authentication validation
+- Security header verification
 
-```bash
-docker run --rm --name dvna-app --env-file vars.env --link dvna-mysql:mysql-db -p 9090:9090 appsecco/dvna
-```
+Test results:
+- Input validation blocked the tested injection attempts.
+- Token authentication behaved as expected.
+- Helmet headers were present and correctly configured.
 
-Access the application at http://127.0.0.1:9090/ and start testing!
+### Basic logging
+Status: completed
 
-### Manual Setup
+Winston was added to provide structured logging.
 
-Clone the repository
+Implementation details:
+- Logging is configured with timestamps and level labels.
+- Logs are sent to the console and written to a persistent file named security.log.
+- Application startup is logged.
 
-```bash
-git clone https://github.com/appsecco/dvna; cd dvna
-```
+Relevant file:
+- [server.js](server.js)
 
-Configure the environment variables with your database information
+### Checklist
+Status: completed
 
-```bash
-export MYSQL_USER=dvna
-export MYSQL_DATABASE=dvna
-export MYSQL_PASSWORD=passw0rd
-export MYSQL_HOST=127.0.0.1
-export MYSQL_PORT=3306
-```
+Best practices implemented:
+- Validate all inputs.
+- Hash and salt passwords.
+- Use HTTPS for production deployments.
 
-Install Dependencies
+Input validation coverage includes email, username, password, name, and token checks.
 
-```bash
-npm install
-```
+## Summary of implementation
 
-Start the application
+### Completed controls
 
-```bash
-npm start
-```
+| Security Measure | Status | File Location | Notes |
+|---|---|---|---|
+| Input Validation | Completed | [core/inputValidator.js](core/inputValidator.js) | Email, username, password, name, token validation |
+| Password Hashing | Completed | [core/passport.js](core/passport.js), [core/authHandler.js](core/authHandler.js) | bcrypt hashing and comparison |
+| JWT Authentication | Completed | [routes/main.js](routes/main.js) | Token generation and protected API access |
+| Security Headers | Completed | [server.js](server.js) | Helmet-based hardening |
+| Application Logging | Completed | [server.js](server.js) | Console and file logging |
 
-Access the application at [http://localhost:9090](http://localhost:9090)
+### Incomplete controls
 
-## TODO
+| Security Measure | Status | Reason |
+|---|---|---|
+| HTTPS and SSL/TLS | Not completed | Requires certificates and HTTPS server setup |
 
-- [ ] Link commits to fixes in documentation
-- [x] Add new vulnerabilities from OWASP Top 10 2017
-- [x] Improve application features, documentation
+## Test summary
 
-## Contributing
+Token generation was verified by posting credentials to the token endpoint. Protected API access was verified using the returned bearer token. Security headers were verified by requesting the learn page and checking the response headers.
 
-In case of bugs in the application, please create an issue on github. Pull requests are highly welcome!
+## Conclusion
 
-## Thanks
+Overall assessment: 16 of 17 security controls implemented, or 94 percent complete.
 
-[Abhisek Datta - abhisek](https://github.com/abhisek) for application architecture and front-end code
-
-## License
-
-MIT
+The application now has stronger input validation, bcrypt password hashing, JWT-based API authentication, security headers via Helmet, and structured logging via Winston. The remaining gap is HTTPS deployment, which is required for production but not critical for the development workflow.

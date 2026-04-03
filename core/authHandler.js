@@ -1,6 +1,8 @@
 var db = require('../models')
-var bCrypt = require('bcrypt')
+var bcrypt = require('bcrypt')
 var md5 = require('md5')
+var jwt = require('jsonwebtoken')
+var inputValidator = require('./inputValidator')
 
 module.exports.isAuthenticated = function (req, res, next) {
 	if (req.isAuthenticated()) {
@@ -16,11 +18,28 @@ module.exports.isNotAuthenticated = function (req, res, next) {
 	res.redirect('/learn');
 }
 
+module.exports.verifyJwt = function (req, res, next) {
+	var authHeader = req.headers.authorization || ''
+	var token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null
+	if (!token) {
+		return res.status(401).json({ success: false, message: 'Token required' })
+	}
+
+	try {
+		var decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key')
+		req.jwtUser = decoded
+		return next()
+	} catch (err) {
+		return res.status(401).json({ success: false, message: 'Invalid token' })
+	}
+}
+
 module.exports.forgotPw = function (req, res) {
-	if (req.body.login) {
+	var sanitizedLogin = inputValidator.sanitizeLogin(req.body.login)
+	if (sanitizedLogin) {
 		db.User.find({
 			where: {
-				'login': req.body.login
+				'login': sanitizedLogin
 			}
 		}).then(user => {
 			if (user) {
@@ -31,6 +50,9 @@ module.exports.forgotPw = function (req, res) {
 				req.flash('danger', "Invalid login username")
 				res.redirect('/forgotpw')
 			}
+		}).catch(err => {
+			req.flash('danger', 'Internal Error')
+			res.redirect('/forgotpw')
 		})
 	} else {
 		req.flash('danger', "Invalid login username")
@@ -39,17 +61,19 @@ module.exports.forgotPw = function (req, res) {
 }
 
 module.exports.resetPw = function (req, res) {
-	if (req.query.login) {
+	var sanitizedLogin = inputValidator.sanitizeLogin(req.query.login)
+	var sanitizedToken = inputValidator.sanitizeToken(req.query.token)
+	if (sanitizedLogin && sanitizedToken) {
 		db.User.find({
 			where: {
-				'login': req.query.login
+				'login': sanitizedLogin
 			}
 		}).then(user => {
 			if (user) {
-				if (req.query.token == md5(req.query.login)) {
+				if (sanitizedToken == md5(sanitizedLogin)) {
 					res.render('resetpw', {
-						login: req.query.login,
-						token: req.query.token
+						login: sanitizedLogin,
+						token: sanitizedToken
 					})
 				} else {
 					req.flash('danger', "Invalid reset token")
@@ -59,6 +83,9 @@ module.exports.resetPw = function (req, res) {
 				req.flash('danger', "Invalid login username")
 				res.redirect('/forgotpw')
 			}
+		}).catch(err => {
+			req.flash('danger', 'Internal Error')
+			res.redirect('/forgotpw')
 		})
 	} else {
 		req.flash('danger', "Non Existant login username")
@@ -67,19 +94,31 @@ module.exports.resetPw = function (req, res) {
 }
 
 module.exports.resetPwSubmit = function (req, res) {
-	if (req.body.password && req.body.cpassword && req.body.login && req.body.token) {
+	var sanitizedLogin = inputValidator.sanitizeLogin(req.body.login)
+	var sanitizedToken = inputValidator.sanitizeToken(req.body.token)
+	if (req.body.password && req.body.cpassword && sanitizedLogin && sanitizedToken) {
+		if (!inputValidator.isValidPasswordInput(req.body.password) || !inputValidator.isValidPasswordInput(req.body.cpassword)) {
+			req.flash('danger', "Invalid password format")
+			return res.redirect('/forgotpw')
+		}
+
 		if (req.body.password == req.body.cpassword) {
 			db.User.find({
 				where: {
-					'login': req.body.login
+					'login': sanitizedLogin
 				}
 			}).then(user => {
 				if (user) {
-					if (req.body.token == md5(req.body.login)) {
-						user.password = bCrypt.hashSync(req.body.password, bCrypt.genSaltSync(10), null)
-						user.save().then(function () {
+					if (sanitizedToken == md5(sanitizedLogin)) {
+						bcrypt.hash(req.body.password, 10).then(function (hashedPassword) {
+							user.password = hashedPassword
+							return user.save()
+						}).then(function () {
 							req.flash('success', "Passowrd successfully reset")
 							res.redirect('/login')
+						}).catch(function () {
+							req.flash('danger', 'Internal Error')
+							res.redirect('/forgotpw')
 						})
 					} else {
 						req.flash('danger', "Invalid reset token")
@@ -89,12 +128,15 @@ module.exports.resetPwSubmit = function (req, res) {
 					req.flash('danger', "Invalid login username")
 					res.redirect('/forgotpw')
 				}
+			}).catch(err => {
+				req.flash('danger', 'Internal Error')
+				res.redirect('/forgotpw')
 			})
 		} else {
 			req.flash('danger', "Passowords do not match")
 			res.render('resetpw', {
-				login: req.query.login,
-				token: req.query.token
+				login: sanitizedLogin,
+				token: sanitizedToken
 			})
 		}
 
